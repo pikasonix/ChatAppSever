@@ -20,6 +20,7 @@ import model.Model_Message; // Định nghĩa đối tượng Model_Message
 import model.Model_Package_Sender;
 import model.Model_Receive_Image;
 import model.Model_Receive_Message;
+import model.Model_Request_File;
 import model.Model_Send_Message;
 import model.Model_User_Account; // Định nghĩa đối tượng Model_User_Account
 
@@ -162,6 +163,29 @@ public class Service {
                 }
             }
         });
+        
+        server.addEventListener("get_file", Integer.class, new DataListener<Integer>() {
+            @Override
+            public void onData(SocketIOClient sioc, Integer t, AckRequest ar) throws Exception {
+                Model_File file = serviceFile.initFile(t);
+                long fileSize = serviceFile.getFileSize(t);
+                ar.sendAckData(file.getFileExtension(), fileSize);
+                System.out.println("get_file Service Server");
+            }
+        });
+        
+        server.addEventListener("request_file", Model_Request_File.class, new DataListener<Model_Request_File>() {
+            @Override
+            public void onData(SocketIOClient sioc, Model_Request_File t, AckRequest ar) throws Exception {
+                byte[] data = serviceFile.getFileData( t.getCurrentLength(), t.getFileID());
+                if(data != null) {
+                    ar.sendAckData(data);
+                }else{
+                    ar.sendAckData();
+                    System.out.println("request_file Service Server");
+                }
+            }
+        });
         // Sau đó, bắt đầu server
         server.start(); // Khởi động server
         textArea.append("Server has start on port: " + PORT_NUMBER + "\n"); // Ghi log khi server đã khởi động
@@ -206,7 +230,7 @@ public class Service {
             }
         } else {    // Gửi text
             for (Model_Client c : listClient) {
-                if (c.getUser().getUserID() == data.getToUserID()) {    // Tìm người dùng đích và gửi text đi 
+                if (c.getUser().getUserID() == data.getToUserID()) {    // Tìm người dùng đích và gửi text đi   
                     c.getClient().sendEvent("receive_ms", new Model_Receive_Message(data.getFromUserID(), data.getText(), data.getMessageType(), null));
                     break;
                 }
