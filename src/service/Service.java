@@ -18,6 +18,7 @@ import model.Model_Login; // Định nghĩa đối tượng Model_Login
 import model.Model_Register; // Định nghĩa đối tượng Model_Register
 import model.Model_Message; // Định nghĩa đối tượng Model_Message
 import model.Model_Package_Sender;
+import model.Model_Receive_File;
 import model.Model_Receive_Image;
 import model.Model_Receive_Message;
 import model.Model_Request_File;
@@ -142,24 +143,51 @@ public class Service {
             }
         });
         // Tạo bộ lắng nghe sự kiện gửi file từ client
-        server.addEventListener("send_file", Model_Package_Sender.class, new DataListener<Model_Package_Sender>() {
+        server.addEventListener("send_image", Model_Package_Sender.class, new DataListener<Model_Package_Sender>() {
             @Override
             public void onData(SocketIOClient sioc, Model_Package_Sender t, AckRequest ar) throws Exception {
                 try {
+                    System.out.println("Server Service send_image");
                     serviceFile.receiveFile(t); // Kiểm tra đã gửi xong file chưa, nếu chưa xong thì gửi tiếp
                     if (t.isFinish()) {
                         ar.sendAckData(true);   // Xác nhận đã nhận được file
+                        
                         Model_Receive_Image dataImage = new Model_Receive_Image(); 
                         dataImage.setFileID(t.getFileID());
-                        Model_Send_Message message = serviceFile.closeFile(dataImage);  // Tạo message là ảnh dạng BlurHash hoặc text 
+                        Model_Send_Message messageImage = serviceFile.closeFile(dataImage);  // Tạo message là ảnh dạng BlurHash hoặc text 
                         //  Gửi message tới client đích
-                        sendTempFileToClient(message, dataImage);
+                        sendTempImageToClient(messageImage, dataImage);
                     } else {
                         ar.sendAckData(true);
                     }
                 } catch (IOException | SQLException e) {
                     ar.sendAckData(false);
                     e.printStackTrace();
+                    System.out.println("Lỗi ở phần Sever service send_file");
+                }
+            }
+        });
+        // Tạo bộ lắng nghe sự kiện gửi file từ client
+        server.addEventListener("send_file", Model_Package_Sender.class, new DataListener<Model_Package_Sender>() {
+            @Override
+            public void onData(SocketIOClient sioc, Model_Package_Sender t, AckRequest ar) throws Exception {
+                try {
+                    System.out.println("Server Service send_file");
+                    serviceFile.receiveFile(t); // Kiểm tra đã gửi xong file chưa, nếu chưa xong thì gửi tiếp
+                    if (t.isFinish()) {
+                        ar.sendAckData(true);   // Xác nhận đã nhận được file
+                        
+                        Model_Receive_File dataFile = new Model_Receive_File();
+                        dataFile.setFileID(t.getFileID());
+                        Model_Send_Message messageFile = serviceFile.closeFile(dataFile);
+                        sendTempFileToClient(messageFile, dataFile);
+                    } else {
+                        ar.sendAckData(true);
+                    }
+                } catch (IOException | SQLException e) {
+                    ar.sendAckData(false);
+                    e.printStackTrace();
+                    System.out.println("Lỗi ở phần Sever service send_file");
                 }
             }
         });
@@ -170,7 +198,6 @@ public class Service {
                 Model_File file = serviceFile.initFile(t);
                 long fileSize = serviceFile.getFileSize(t);
                 ar.sendAckData(file.getFileExtension(), fileSize);
-                System.out.println("get_file Service Server");
             }
         });
         
@@ -182,7 +209,6 @@ public class Service {
                     ar.sendAckData(data);
                 }else{
                     ar.sendAckData();
-                    System.out.println("request_file Service Server");
                 }
             }
         });
@@ -231,22 +257,32 @@ public class Service {
         } else {    // Gửi text
             for (Model_Client c : listClient) {
                 if (c.getUser().getUserID() == data.getToUserID()) {    // Tìm người dùng đích và gửi text đi   
-                    c.getClient().sendEvent("receive_ms", new Model_Receive_Message(data.getFromUserID(), data.getText(), data.getMessageType(), null));
+                    c.getClient().sendEvent("receive_ms", new Model_Receive_Message(data.getFromUserID(), data.getText(), data.getMessageType(), null, null));
                     break;
                 }
             }
         }
     }
     // Tìm client đích và gửi ảnh đã mã hóa tới
-    private void sendTempFileToClient(Model_Send_Message data, Model_Receive_Image dataImage) {
+    private void sendTempImageToClient(Model_Send_Message data, Model_Receive_Image dataImage) {
         for (Model_Client c : listClient) {
             if (c.getUser().getUserID() == data.getToUserID()) {
-                c.getClient().sendEvent("receive_ms", new Model_Receive_Message(data.getFromUserID(), data.getText(), 3, dataImage));
+                System.out.println("Server Service gui image toi client dich");
+                c.getClient().sendEvent("receive_ms", new Model_Receive_Message(data.getFromUserID(), data.getText(), 3, dataImage, null));
                 break;
             }
         }
     }
-    
+    // Tìm client đích và gửi file
+    private void sendTempFileToClient(Model_Send_Message data, Model_Receive_File dataFile) {
+        for (Model_Client c : listClient) {
+            if (c.getUser().getUserID() == data.getToUserID()) {
+                System.out.println("Server Service gui file toi client dich");
+                c.getClient().sendEvent("receive_ms", new Model_Receive_Message(data.getFromUserID(), data.getText(), 4, null, dataFile));
+                break;
+            }
+        }
+    }
     public List<Model_Client> getListClient() {
         return listClient; // Trả về danh sách các client
     }

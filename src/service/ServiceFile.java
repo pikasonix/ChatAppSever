@@ -17,6 +17,7 @@ import javax.imageio.ImageIO;
 import model.Model_File_Sender;
 import model.Model_File_Receive;
 import model.Model_Package_Sender;
+import model.Model_Receive_File;
 import model.Model_Receive_Image;
 import model.Model_Send_Message;
 import swing.BlurHash.BlurHash;
@@ -50,6 +51,7 @@ public class ServiceFile {
         p.setInt(2, fileID);
         p.execute();
         p.close();
+        System.out.println("Server ServiceFile updateBlurHashDone");
     }
     // Update Status tại bản ghi có fileID = fileID truyền vào
     public void updateDone(int fileID) throws SQLException {
@@ -57,6 +59,7 @@ public class ServiceFile {
         p.setInt(1, fileID);
         p.execute();
         p.close();
+        System.out.println("Server ServiceFile updateDone");
     }
     // Thêm một cặp khóa giá trị vào HashMap
     public void initFile(Model_File file, Model_Send_Message message) throws IOException {
@@ -64,7 +67,10 @@ public class ServiceFile {
     }
     // trả về fileID, fileExtension từ fileID
     public Model_File getFile(int fileID) throws SQLException {
-        PreparedStatement p = con.prepareStatement(GET_FILE_EXTENSION); // Chuẩn bị câu lệnh sql
+        PreparedStatement p = con.prepareStatement(GET_FILE_EXTENSION,
+                    ResultSet.TYPE_SCROLL_INSENSITIVE, // Cho phép di chuyển mà không bị ảnh hưởng bởi thay đổi cơ sở dữ liệu
+                    ResultSet.CONCUR_READ_ONLY // Chỉ cho phép đọc, không thể chỉnh sửa
+            );  // bug này fix 5 ngày mới ra 
         p.setInt(1, fileID);    // Đưa giá trị vào câu lệnh SQL
         ResultSet r = p.executeQuery(); // Thực hiện câu lệnh
         r.first();
@@ -102,10 +108,11 @@ public class ServiceFile {
             fileReceivers.get(dataPackage.getFileID()).close();
         }
     }
-
+    // Gửi ảnh
     public Model_Send_Message closeFile(Model_Receive_Image dataImage) throws IOException, SQLException {
         Model_File_Receive file = fileReceivers.get(dataImage.getFileID());
         if (file.getMessage().getMessageType() == 3) {  // Ảnh
+            System.out.println("Server ServiceFile closeFile Image");
             file.getMessage().setText(""); 
             String blurhash = convertFileToBlurHash(file.getFile(), dataImage); // chuyển đổi ảnh sang ảnh mờ
             updateBlurHashDone(dataImage.getFileID(), blurhash);    // Cập nhật Status trong files
@@ -113,6 +120,17 @@ public class ServiceFile {
             updateDone(dataImage.getFileID());  // Cập nhật Status trong files
         }
         fileReceivers.remove(dataImage.getFileID());    // Xóa khỏi Map vì đã gửi xong
+        //  Trả về message để gửi tới client đích sau khi server nhận được ảnh từ client nguồn
+        return file.getMessage();
+    }
+    // Gửi file
+    public Model_Send_Message closeFile(Model_Receive_File dataFile) throws IOException, SQLException {
+        Model_File_Receive file = fileReceivers.get(dataFile.getFileID());
+        if(file.getMessage().getMessageType() == 4){
+            System.out.println("Server ServiceFile closeFile File");
+            updateDone(dataFile.getFileID());  // Cập nhật Status trong files
+        }
+        fileReceivers.remove(dataFile.getFileID());    // Xóa khỏi Map vì đã gửi xong
         //  Trả về message để gửi tới client đích sau khi server nhận được ảnh từ client nguồn
         return file.getMessage();
     }
